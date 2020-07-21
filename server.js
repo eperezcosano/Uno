@@ -239,7 +239,7 @@ function startGame(name) {
     io.to(name).emit('turnPlayer', data[name]['players'][(data[name]['turn'])]['id']);
     io.to(name).emit('sendCard', data[name]['cardOnBoard']);
   } else {
-    console.log('>> No enough people...');
+    console.log('>> ' + name + ': Not enough people...');
   }
 }
 
@@ -324,11 +324,7 @@ function onConnection(socket) {
       //deck.push(card);
       // TODO: Check playable card
       //Next turn
-      if (data[res[1]]['reverse'] == 0) {
-        numPlayer = (numPlayer + 1) % count(data[res[1]]['players']);
-      } else {
-        numplayer = Math.abs(numplayer - 1) % count(data[res[1]]['players']);
-      }
+      numplayer = Math.abs(numplayer + (-1) ** data[res[1]]['reverse']) % count(data[res[1]]['players']);
       data[res[1]]['turn'] = numplayer;
       io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
     }
