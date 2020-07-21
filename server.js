@@ -27,6 +27,7 @@ for (let i = 1; i <= numRooms; i++) {
   room['reverse'] = 0;
   room['turn'] = 0;
   room['cardOnBoard'] = 0;
+  room['people'] = 0;
   let players = [];
   for (let j = 0; j < maxPeople; j++) {
     let p = [];
@@ -164,6 +165,8 @@ function startGame(name) {
       console.log('>> ' + name + ': ' + playerName +
                 ' (' + sockets_ids[i] + ') is Player ' + i);
     }
+
+    data[name]['people'] = people;
 
     //Shuffle a copy of a new deck
     let newDeck = [...deck];
@@ -312,31 +315,31 @@ function onConnection(socket) {
 
   socket.on('drawCard', function(res) {
     let numPlayer = data[res[1]]['turn'];
-    let idPlayer = data[res[1]]['players'][numplayer]['id'];
+    let idPlayer = data[res[1]]['players'][numPlayer]['id'];
     let namePlayer = data[res[1]]['players']['name'];
     let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
     let deck = data[res[1]]['deck'];
 
-    if (idplayer == socket.id) {
+    if (idPlayer == socket.id) {
       let card = parseInt(deck.shift());
       handPlayer.push(card);
       io.to(idPlayer).emit('haveCard', handPlayer);
       //deck.push(card);
       // TODO: Check playable card
       //Next turn
-      numplayer = Math.abs(numplayer + (-1) ** data[res[1]]['reverse']) % count(data[res[1]]['players']);
-      data[res[1]]['turn'] = numplayer;
-      io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
+      numPlayer = Math.abs(numPlayer + (-1) ** data[res[1]]['reverse']) % data[res[1]]['people'];
+      data[res[1]]['turn'] = numPlayer;
+      io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numPlayer]['id']);
     }
   });
 
   socket.on('playCard', function(res) {
     let numPlayer = data[res[1]]['turn'];
-    let idPlayer = data[res[1]]['players'][numplayer]['id'];
+    let idPlayer = data[res[1]]['players'][numPlayer]['id'];
     let namePlayer = data[res[1]]['players']['name'];
     let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
     let deck = data[res[1]]['deck'];
-
+//Check turn
     if (idPlayer == socket.id) {
       let playedColor = cardColor(res[0]);
       let playedNumber = res[0] % 14;
@@ -344,9 +347,7 @@ function onConnection(socket) {
       let boardColor = cardColor(data[res[1]]['cardOnBoard']);
       let boardNumber = data[res[1]]['cardOnBoard'] % 14;
 
-      if (playedNumber == 13) {
-        // Wild card
-      } else if (playedColor == boardColor || playedNumber == boardNumber) {
+      if (playedColor == 'black' || playedColor == boardColor || playedNumber == boardNumber) {
         // Play card
         io.to(res[1]).emit('sendCard', res[0]);
         data[res[1]]['cardOnBoard'] = res[0];
@@ -359,19 +360,20 @@ function onConnection(socket) {
 
         // Next turn
         let skip = 0;
-        if (playedNumber == 10) {
+        if (cardType(res[0]) == 'Skip') {
           skip += 1;
-        } else if (playedNumber == 11) {
+        } else if (cardType(res[0]) == 'Reverse') {
           data[res[1]]['reverse'] = (data[res[1]]['reverse'] + 1) % 2;
-        } else if (playedNumber == 12) {
+        } else if (cardType(res[0]) == 'Draw2') {
           skip += 1;
           //draw2
-        } else if (playedNumber == 13 && Math.floor(res[0] / 14) >= 4) {
+        } else if (cardType(res[0]) == 'Draw4') {
           skip += 1;
           //draw4
         }
-        numPlayer = Math.abs(numPlayer + (-1) ** data[res[1]]['reverse'] * (1 + skip)) % count(data[res[1]]['players']);
-        io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
+        numPlayer = Math.abs(numPlayer + (-1) ** data[res[1]]['reverse'] * (1 + skip)) % data[res[1]]['people'];
+        console.log(numPlayer);
+        io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numPlayer]['id']);
 
       }
     }

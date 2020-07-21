@@ -12,29 +12,19 @@ let hand = [];
 let turn;
 let playerName;
 
-document.addEventListener('touchstart', onMouseClick, false);
-document.addEventListener('click', onMouseClick, false);
+function init() {
+  canvas.style.backgroundColor = '#10ac84';
+  cards.src = 'images/deck.svg';
+  back.src = 'images/uno.svg';
 
-canvas.style.backgroundColor = '#10ac84';
-cards.src = 'images/deck.svg';
-back.src = 'images/uno.svg';
+  document.addEventListener('touchstart', onMouseClick, false);
+  document.addEventListener('click', onMouseClick, false);
 
-document.getElementById('enter').onclick = function() {
-  playerName = document.getElementById('playerName').value;
-  if (playerName === "") {
-    playerName = "Guest";
+  playerName = prompt('Enter your name: ', 'Guest');
+  if (playerName == null || playerName == "") {
+    playerName = 'Guest';
   }
-  console.log(">> Player Name: " + playerName);
   socket.connect();
-}
-
-document.getElementById('disconnect').onclick = function() {
-  socket.disconnect();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  document.getElementById('playerName').disabled = false;
-  document.getElementById('enter').disabled = false;
-  document.getElementById('disconnect').disabled = true;
-  console.log(">> Disconnected");
 }
 
 socket.on('connect', requestRoom);
@@ -46,8 +36,6 @@ function requestRoom() {
   hand = [];
   turn = false;
   console.log('>> Room Request');
-  document.getElementById('playerName').disabled = true;
-  document.getElementById('enter').disabled = true;
 }
 
 socket.on('responseRoom', function (name) {
@@ -55,13 +43,10 @@ socket.on('responseRoom', function (name) {
     room = name;
     console.log('<< Room Response: ' + name);
     ctx.fillText(name, 0, 10);
-    document.getElementById('disconnect').disabled = false;
     ctx.drawImage(back, canvas.width-cdWidth/2-60, canvas.height/2-cdHeight/4, cdWidth/2, cdHeight/2);
     ctx.fillText(playerName, 100, 390);
   } else {
     socket.disconnect();
-    document.getElementById('playerName').disabled = false;
-    document.getElementById('enter').disabled = false;
     alert('Rooms are full! Try again later');
   }
 });
@@ -145,3 +130,5 @@ function debugArea(x1, x2, y1, y2) {
   ctx.closePath();
   ctx.stroke();
 }
+
+init();
