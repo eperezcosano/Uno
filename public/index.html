@@ -6,6 +6,19 @@
   	<title>Uno</title>
   </head>
   <body>
+    <div class="input_controls">
+      <div class="connection_control">
+        <input type="text" id="playerName" placeholder="Player Name" />
+        <button type="button" id="enter">Enter</button>
+        <button type="button" id="disconnect" disabled>Disconnect</button>
+      </div>
+      <div class="color_control">
+        <button type="button" name="color_red">Red</button>
+        <button type="button" name="color_red">Green</button>
+        <button type="button" name="color_red">Blue</button>
+        <button type="button" name="color_red">Yellow</button>
+      </div>
+    </div>
     <canvas id="canvas" width="1000" height="600"></canvas>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/main.js"></script>

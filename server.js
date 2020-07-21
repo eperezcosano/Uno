@@ -8,21 +8,30 @@ app.use(express.static(__dirname + '/public'));
 io.on('connection', onConnection);
 http.listen(port, () => console.log('listening on port ' + port));
 
-const numRooms = 3;
+const numRooms = 5;
+const maxPeople = 10;
 
-var numbers = Array.apply(null, Array(112)).map(function (_, i) {return i;});
-var deck = numbers;
-var data = [];
-for (var i = 1; i <= numRooms; i++) {
-  var room = [];
+let deck = Array.apply(null, Array(112)).map(function (_, i) {return i;});
+deck.splice(56, 1); //56
+deck.splice(69, 1); //70
+deck.splice(82, 1); //84
+deck.splice(95, 1); //98
+
+let data = [];
+for (let i = 1; i <= numRooms; i++) {
+  let room = [];
+  room['timeout'] = [];
+  room['timeout']['id'] = 0;
+  room['timeout']['s'] = 10;
   room['deck'] = [];
-  room['cycle'] = 1;
+  room['reverse'] = 0;
   room['turn'] = 0;
-  room['cdtb'] = 0;
-  var players = [];
-  for (var j = 0; j < 2; j++) {
-    var p = [];
+  room['cardOnBoard'] = 0;
+  let players = [];
+  for (let j = 0; j < maxPeople; j++) {
+    let p = [];
     p['id'] = 0;
+    p['name'] = "";
     p['hand'] = [];
     players[j] = p;
   }
@@ -30,13 +39,13 @@ for (var i = 1; i <= numRooms; i++) {
   data['Room_'+i] = room;
 }
 
-numbers.splice(56, 1);
-numbers.splice(69, 1); //70
-numbers.splice(82, 1); //84
-numbers.splice(95, 1); //98
-
+/**
+ * Shuffles all elements in array
+ * @function
+ * @param {Array} a Array to shuffle
+ */
 function shuffle(a) {
-  var j, x, i;
+  let j, x, i;
   for (i = a.length - 1; i > 0; i--) {
     j = Math.floor(Math.random() * (i + 1));
     x = a[i];
@@ -45,12 +54,18 @@ function shuffle(a) {
   }
 }
 
+/**
+ * Given a card number, returns its color
+ * @function
+ * @param {Number} num Number of the card position in deck
+ * @return {String} Card color. Either black, red, yellow, green or blue.
+ */
 function cardColor(num) {
-  var color;
-  if (num%14 == 13) {
+  let color;
+  if (num % 14 == 13) {
     return 'black';
   }
-  switch (Math.floor(num/14)) {
+  switch (Math.floor(num / 14)) {
     case 0:
     case 4:
       color = 'red';
@@ -71,21 +86,216 @@ function cardColor(num) {
   return color;
 }
 
-function onConnection(socket){
+/**
+ * Given a card number, returns its scoring
+ * @function
+ * @param {Number} num Number of the card position in deck
+ * @return {Number} Points value.
+ */
+function cardScore(num) {
+  let points;
+  switch (num % 14) {
+    case 10: //Skip
+    case 11: //Reverse
+    case 12: //Draw 2
+      points = 20;
+      break;
+    case 13: //Wild or Wild Draw 4
+      points = 50;
+      break;
+    default:
+      points = num % 14;
+      break;
+  }
+  return points;
+}
+
+function startingCountdown(name) {
+  let countDown = data[name]['timeout']['s']--;
+  io.to(name).emit('countDown', countDown);
+  console.log('>> ' + name + ': Starting in ' + countDown);
+  if (countDown <= 0) {
+    clearInterval(data[name]['timeout']['id']);
+    startGame(name);
+  }
+}
+
+
+/**
+ * Request for start the game.
+ * @param {String} name Room name
+ */
+function startGame(name) {
+  console.log('>> ' + name + ': Requesting game...');
+  let people;
+  try {
+    people = io.sockets.adapter.rooms[name].length;
+  } catch (e) {
+    console.log('>> ' + name + ': No people here...');
+    return;
+  }
+  if (people >= 2) {
+    console.log('>> ' + name + ': Starting');
+    let sockets_ids = Object.keys(io.sockets.adapter.rooms[name].sockets);
+    for (let i = 0; i < people; i++) {
+      data[name]['players'][i]['id'] = sockets_ids[i];
+      let playerName = io.sockets.sockets[sockets_ids[i]].playerName;
+      data[name]['players'][i]['name'] = playerName;
+      console.log('>> ' + name + ': ' + playerName +
+                ' (' + sockets_ids[i] + ') is Player ' + i);
+    }
+
+    //Shuffle a copy of a new deck
+    let newDeck = [...deck];
+    shuffle(newDeck);
+    data[name]['deck'] = newDeck;
+    console.log('>> ' + name + ': Shuffling deck');
+
+    //Every player draws a card.
+    //Player with the highest point value is the dealer.
+    let scores = new Array(people);
+    do {
+      console.log('>> ' + name + ': Deciding dealer');
+      for (let i = 0, card = 0, score = 0; i < people; i++) {
+        card = parseInt(newDeck.shift());
+        newDeck.push(card);
+        score = cardScore(card);
+        console.log('>> ' + name + ': Player ' + i + ' draws ' + card % 14 +
+        ' ' + cardColor(card) + ' and gets ' + score + ' points');
+        scores[i] = score;
+      }
+    } while (new Set(scores).size !== scores.length);
+    let dealer = scores.indexOf(Math.max(...scores));
+    console.log('>> ' + name + ': The dealer is Player ' + dealer);
+
+    //Each player is dealt 7 cards
+    for (let i = 0, card = 0; i < people * 7; i++) {
+      let player = (i + dealer + 1) % people;
+      card = parseInt(newDeck.shift());
+      data[name]['players'][player]['hand'].push(card);
+      console.log('>> ' + name + ': Player ' + player + ' draws '
+      + card % 14 + ' ' + cardColor(card));
+    }
+
+    let cardOnBoard;
+    do {
+      cardOnBoard = parseInt(newDeck.shift());
+      console.log('>> ' + name + ': Card on board ' +
+                  cardOnBoard % 14 + ' ' + cardColor(cardOnBoard));
+      if (cardColor(cardOnBoard) == 'black') {
+        newDeck.push(cardOnBoard);
+        console.log('>> ' + name + ': Replacing for another card');
+      } else {
+        break;
+      }
+    } while (true);
+    data[name]['cardOnBoard'] = cardOnBoard;
+
+    data[name]['turn'] = (dealer + 1) % people;
+    data[name]['reverse'] = 0;
+
+    if (cardOnBoard % 14 == 12) {
+      card = parseInt(newDeck.shift());
+      data[name]['players'][(data[name]['turn'])]['hand'].push(card);
+      console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
+                  ' draws ' + card % 14 + ' ' + cardColor(card));
+      card = parseInt(newDeck.shift());
+      data[name]['players'][(data[name]['turn'])]['hand'].push(card);
+      console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
+                  ' draws ' + card % 14 + ' ' + cardColor(card));
+    }
+    if (cardOnBoard % 14 == 11) {
+      data[name]['turn'] = (dealer - 1) % people;
+      data[name]['reverse'] = 1;
+    }
+    if (cardOnBoard % 14 == 10) {
+      data[name]['turn'] = (dealer + 2) % people;
+    }
+
+    console.log('>> ' + name + ': Turn is for Player ' + data[name]['turn']);
+    console.log('>> ' + name + ': Reverse (' + data[name]['reverse'] + ')');
+
+    for (let i = 0; i < people; i++) {
+      io.to(data[name]['players'][i]['id']).emit('haveCard', data[name]['players'][i]['hand']);
+    }
+    io.to(name).emit('turnPlayer', data[name]['players'][(data[name]['turn'])]['id']);
+    io.to(name).emit('sendCard', data[name]['cardOnBoard']);
+  } else {
+    console.log('>> No enough people...');
+  }
+}
+
+/**
+ * Whenever a client connects
+ * @function
+ * @param {Socket} socket Client socket
+ */
+function onConnection(socket) {
+
+  /**
+   * When a room is requested, looks a slot for the player,
+   * upto 10 players in a room, maxRooms and started games are respected.
+   * @method
+   * @param {String} playerName Player name
+   * @return responseRoom with name of the room, otherwise error.
+   */
+  socket.on('requestRoom', function(playerName) {
+    socket.playerName = playerName;
+    for (let i = 1; i <= numRooms; i++) {
+      let name = 'Room_' + i;
+      let people;
+      try {
+        people = io.sockets.adapter.rooms[name].length;
+      } catch (e) {
+        people = 0;
+      }
+      if (people < maxPeople && data[name]['timeout']['s'] > 0) {
+        socket.join(name);
+        console.log('>> User ' + socket.playerName +
+        ' connected on ' + name + ' (' + (people + 1) + '/' + maxPeople + ')');
+        io.to(socket.id).emit('responseRoom', name);
+        if (people + 1 >= 2) {
+          clearInterval(data[name]['timeout']['id']);
+          data[name]['timeout']['s'] = 10;
+          data[name]['timeout']['id'] = setInterval(function() {
+            startingCountdown(name);
+          }, 1000);
+        }
+        return;
+      }
+    }
+    io.to(socket.id).emit('responseRoom', 'error');
+    console.log('>> Rooms exceeded');
+  });
+
+  socket.on('disconnecting', function() {
+    room = Object.keys(io.sockets.adapter.sids[socket.id])[1];
+    if (room !== undefined) {
+      clearInterval(data[room]['timeout']['id']);
+      io.to(room).emit('playerDisconnect', room);
+      console.log('>> ' + room + ': Player ' + socket.playerName + ' ('+
+                  socket.id + ') leaves the room');
+    }
+  });
+
+  socket.on('disconnect', function() {
+    console.log('>> Player ' + socket.playerName + ' ('+
+                socket.id + ') disconnected');
+  });
 
   socket.on('drawCard', function(res) {
-    var numplayer = data[res[1]]['turn'];
-    var idplayer = data[res[1]]['players'][numplayer]['id'];
+    let numplayer = data[res[1]]['turn'];
+    let idplayer = data[res[1]]['players'][numplayer]['id'];
 
     if (idplayer == socket.id) {
-      var card = parseInt(deck.shift());
+      let card = parseInt(deck.shift());
       data[res[1]]['players'][numplayer]['hand'].push(card);
       io.to(idplayer).emit('haveCard', data[res[1]]['players'][numplayer]['hand']);
       deck.push(card);
       if (data[res[1]]['cycle'] == 1) {
-        numplayer = (numplayer+1)%2;
+        numplayer = (numplayer + 1) % 2;
       } else {
-        numplayer = Math.abs(numplayer-1)%2;
+        numplayer = Math.abs(numplayer - 1) % 2;
       }
       data[res[1]]['turn'] = numplayer;
       io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
@@ -93,37 +303,37 @@ function onConnection(socket){
   });
 
   socket.on('playCard', function(res) {
-    var numplayer = data[res[1]]['turn'];
-    var idplayer = data[res[1]]['players'][numplayer]['id'];
+    let numplayer = data[res[1]]['turn'];
+    let idplayer = data[res[1]]['players'][numplayer]['id'];
     if (idplayer == socket.id) {
-      var Pcolor = cardColor(res[0]);
-      var Pnum = res[0]%14;
+      let playedColor = cardColor(res[0]);
+      let playedNumber = res[0] % 14;
 
-      var Tcolor = cardColor(data[res[1]]['cdtb']);
-      var Tnum = data[res[1]]['cdtb']%14;
+      let tableColor = cardColor(data[res[1]]['cdtb']);
+      let tableNumber = data[res[1]]['cdtb'] % 14;
 
-      if (Pnum == 13) {
-        //Comodines
-      } else if (Pcolor == Tcolor || Pnum == Tnum) {
-        //Tirar carta
+      if (playedNumber == 13) {
+        // Wild card
+      } else if (playedColor == tableColor || playedNumber == tableNumber) {
+        // Play card
         io.to(res[1]).emit('sendCard', res[0]);
         data[res[1]]['cdtb'] = res[0];
-        //Quitar carta
-        var h = data[res[1]]['players'][numplayer]['hand'].indexOf(res[0]);
-        if (h > -1) {
-          data[res[1]]['players'][numplayer]['hand'].splice(h, 1);
+        // Remove card
+        let cardPos = data[res[1]]['players'][numplayer]['hand'].indexOf(res[0]);
+        if (cardPos > -1) {
+          data[res[1]]['players'][numplayer]['hand'].splice(cardPos, 1);
         }
         io.to(idplayer).emit('haveCard', data[res[1]]['players'][numplayer]['hand']);
 
-        //Siguiente turno
-        if (Pnum != 10) {
-          if (Pnum == 11) {
-            data[res[1]]['cycle'] = (data[res[1]]['cycle']+1)%2;
+        // Next turn
+        if (playedNumber != 10) {
+          if (playedNumber == 11) {
+            data[res[1]]['cycle'] = (data[res[1]]['cycle'] + 1) % 2;
           }
           if (data[res[1]]['cycle'] == 1) {
-            numplayer = (numplayer+1)%2;
+            numplayer = (numplayer + 1) % 2;
           } else if (cycle == 0) {
-            numplayer = Math.abs(numplayer-1)%2;
+            numplayer = Math.abs(numplayer - 1) % 2;
           }
           data[res[1]]['turn'] = numplayer;
         }
@@ -133,96 +343,5 @@ function onConnection(socket){
     }
   });
 
-  socket.on('leaveRoom', function(room) {
-    if (room != 0 && room !== 'undefinded') {
-      socket.leave(room);
-      console.log('>> User leaving '+room);
-      io.to(socket.id).emit('confirmLeave');
-    }
-  });
 
-  socket.on('requestRoom', function() {
-    for (var i = 1, k = 1; i <= numRooms; i++) {
-      var name = 'Room_'+i;
-      try {
-        var people = io.sockets.adapter.rooms[name].length;
-      } catch (e) {
-        var people = 0;
-      }
-      if (people == k) {
-        socket.join(name);
-        console.log('>> User connected on '+name);
-        io.to(socket.id).emit('responseRoom', name);
-        return;
-      }
-      if (k == 1 && i == numRooms) {
-        k = 0;
-        i = 0;
-      }
-    }
-    io.to(socket.id).emit('responseRoom', 'error');
-    console.log('>> Rooms exceeded');
-  });
-
-  socket.on('requestGame', function(name) {
-    try {
-      var people = io.sockets.adapter.rooms[name].length;
-    } catch (e) {
-      var people = 0;
-    }
-    if (people == 2) {
-      console.log('>> Starting game on '+name);
-      var rnd = Math.round(Math.random());
-      var add = Object.keys(io.sockets.adapter.rooms[name].sockets);
-      var hand1 = [];
-      var hand2 = [];
-
-      if (rnd == 0) {
-        var Player1 = add[0];
-        var Player2 = add[1];
-      } else if (rnd == 1) {
-        var Player1 = add[1];
-        var Player2 = add[0];
-      }
-      shuffle(deck);
-      data[name]['deck'] = deck;
-      data[name]['turn'] = rnd;
-      data[name]['players'][0]['id'] = Player1;
-      data[name]['players'][1]['id'] = Player2;
-
-      for (var i = 0, j = 0; i < 14; i++) {
-        var card = parseInt(deck.shift());
-        if (j == 0) {
-          hand1.push(card);
-          j = 1;
-        } else if (j == 1) {
-          hand2.push(card);
-          j = 0;
-        }
-        deck.push(card);
-      }
-
-      var initCard = deck.shift();
-      data[name]['cdtb'] = initCard;
-      data[name]['players'][0]['hand'] = hand1;
-      data[name]['players'][1]['hand'] = hand2;
-
-
-      io.to(Player1).emit('haveCard', hand1);
-      io.to(Player2).emit('haveCard', hand2);
-      deck.push(initCard);
-      io.to(name).emit('turnPlayer', Player1);
-      io.to(name).emit('sendCard', initCard);
-    }
-  });
-
-  socket.on('disconnecting', function() {
-    room = Object.keys(io.sockets.adapter.sids[socket.id])[1];
-    io.to(room).emit('playerDisconnect', room);
-    console.log('>> User leaving '+room);
-  });
-
-  socket.on('disconnect', function(){
-    console.log('>> User disconnected');
-  });
 }
