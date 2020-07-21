@@ -205,7 +205,7 @@ function startGame(name) {
                   ' draws ' + card % 14 + ' ' + cardColor(card));
     }
     if (cardOnBoard % 14 == 11) {
-      data[name]['turn'] = (dealer - 1) % people;
+      data[name]['turn'] = Math.abs(dealer - 1) % people;
       data[name]['reverse'] = 1;
     }
     if (cardOnBoard % 14 == 10) {
