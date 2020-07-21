@@ -86,6 +86,26 @@ function cardColor(num) {
   return color;
 }
 
+function cardType(num) {
+  switch (num % 14) {
+    case 10: //Skip
+      return 'Skip';
+    case 11: //Reverse
+      return 'Reverse';
+    case 12: //Draw 2
+      return 'Draw2';
+      break;
+    case 13: //Wild or Wild Draw 4
+      if (Math.floor(num / 14) >= 4) {
+        return 'Draw4';
+      } else {
+        return 'Wild';
+      }
+    default:
+      return 'Number ' + (num % 14);
+  }
+}
+
 /**
  * Given a card number, returns its scoring
  * @function
@@ -160,7 +180,7 @@ function startGame(name) {
         card = parseInt(newDeck.shift());
         newDeck.push(card);
         score = cardScore(card);
-        console.log('>> ' + name + ': Player ' + i + ' draws ' + card % 14 +
+        console.log('>> ' + name + ': Player ' + i + ' draws ' + cardType(card) +
         ' ' + cardColor(card) + ' and gets ' + score + ' points');
         scores[i] = score;
       }
@@ -174,14 +194,14 @@ function startGame(name) {
       card = parseInt(newDeck.shift());
       data[name]['players'][player]['hand'].push(card);
       console.log('>> ' + name + ': Player ' + player + ' draws '
-      + card % 14 + ' ' + cardColor(card));
+      + cardType(card) + ' ' + cardColor(card));
     }
 
     let cardOnBoard;
     do {
       cardOnBoard = parseInt(newDeck.shift());
       console.log('>> ' + name + ': Card on board ' +
-                  cardOnBoard % 14 + ' ' + cardColor(cardOnBoard));
+                  cardType(cardOnBoard) + ' ' + cardColor(cardOnBoard));
       if (cardColor(cardOnBoard) == 'black') {
         newDeck.push(cardOnBoard);
         console.log('>> ' + name + ': Replacing for another card');
@@ -194,21 +214,19 @@ function startGame(name) {
     data[name]['turn'] = (dealer + 1) % people;
     data[name]['reverse'] = 0;
 
-    if (cardOnBoard % 14 == 12) {
+    if (cardType(cardOnBoard) == 'Draw2') {
       card = parseInt(newDeck.shift());
       data[name]['players'][(data[name]['turn'])]['hand'].push(card);
       console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
-                  ' draws ' + card % 14 + ' ' + cardColor(card));
+                  ' draws ' + cardType(card) + ' ' + cardColor(card));
       card = parseInt(newDeck.shift());
       data[name]['players'][(data[name]['turn'])]['hand'].push(card);
       console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
-                  ' draws ' + card % 14 + ' ' + cardColor(card));
-    }
-    if (cardOnBoard % 14 == 11) {
+                  ' draws ' + cardType(card) + ' ' + cardColor(card));
+    } else if (cardType(cardOnBoard) == 'Reverse') {
       data[name]['turn'] = Math.abs(dealer - 1) % people;
       data[name]['reverse'] = 1;
-    }
-    if (cardOnBoard % 14 == 10) {
+    } else if (cardType(cardOnBoard) == 'Skip') {
       data[name]['turn'] = (dealer + 2) % people;
     }
 
@@ -317,40 +335,46 @@ function onConnection(socket) {
   });
 
   socket.on('playCard', function(res) {
-    let numplayer = data[res[1]]['turn'];
-    let idplayer = data[res[1]]['players'][numplayer]['id'];
-    if (idplayer == socket.id) {
+    let numPlayer = data[res[1]]['turn'];
+    let idPlayer = data[res[1]]['players'][numplayer]['id'];
+    let namePlayer = data[res[1]]['players']['name'];
+    let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
+    let deck = data[res[1]]['deck'];
+
+    if (idPlayer == socket.id) {
       let playedColor = cardColor(res[0]);
       let playedNumber = res[0] % 14;
 
-      let tableColor = cardColor(data[res[1]]['cdtb']);
-      let tableNumber = data[res[1]]['cdtb'] % 14;
+      let boardColor = cardColor(data[res[1]]['cardOnBoard']);
+      let boardNumber = data[res[1]]['cardOnBoard'] % 14;
 
       if (playedNumber == 13) {
         // Wild card
-      } else if (playedColor == tableColor || playedNumber == tableNumber) {
+      } else if (playedColor == boardColor || playedNumber == boardNumber) {
         // Play card
         io.to(res[1]).emit('sendCard', res[0]);
-        data[res[1]]['cdtb'] = res[0];
+        data[res[1]]['cardOnBoard'] = res[0];
         // Remove card
-        let cardPos = data[res[1]]['players'][numplayer]['hand'].indexOf(res[0]);
+        let cardPos = handPlayer.indexOf(res[0]);
         if (cardPos > -1) {
-          data[res[1]]['players'][numplayer]['hand'].splice(cardPos, 1);
+          handPlayer.splice(cardPos, 1);
         }
-        io.to(idplayer).emit('haveCard', data[res[1]]['players'][numplayer]['hand']);
+        io.to(idPlayer).emit('haveCard', handPlayer);
 
         // Next turn
-        if (playedNumber != 10) {
-          if (playedNumber == 11) {
-            data[res[1]]['cycle'] = (data[res[1]]['cycle'] + 1) % 2;
-          }
-          if (data[res[1]]['cycle'] == 1) {
-            numplayer = (numplayer + 1) % 2;
-          } else if (cycle == 0) {
-            numplayer = Math.abs(numplayer - 1) % 2;
-          }
-          data[res[1]]['turn'] = numplayer;
+        let skip = 0;
+        if (playedNumber == 10) {
+          skip += 1;
+        } else if (playedNumber == 11) {
+          data[res[1]]['reverse'] = (data[res[1]]['reverse'] + 1) % 2;
+        } else if (playedNumber == 12) {
+          skip += 1;
+          //draw2
+        } else if (playedNumber == 13 && Math.floor(res[0] / 14) >= 4) {
+          skip += 1;
+          //draw4
         }
+        numPlayer = Math.abs(numPlayer + (-1) ** data[res[1]]['reverse'] * (1 + skip)) % count(data[res[1]]['players']);
         io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
 
       }
