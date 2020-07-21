@@ -233,7 +233,7 @@ function startGame(name) {
 function onConnection(socket) {
 
   /**
-   * When a room is requested, looks a slot for the player,
+   * Whenever a room is requested, looks for a slot for the player,
    * upto 10 players in a room, maxRooms and started games are respected.
    * @method
    * @param {String} playerName Player name
@@ -268,6 +268,11 @@ function onConnection(socket) {
     console.log('>> Rooms exceeded');
   });
 
+  /**
+   * Whenever someone is performing a disconnection,
+   * leave its room and notify to the rest
+   * @method
+   */
   socket.on('disconnecting', function() {
     room = Object.keys(io.sockets.adapter.sids[socket.id])[1];
     if (room !== undefined) {
@@ -278,24 +283,33 @@ function onConnection(socket) {
     }
   });
 
+  /**
+   * Whenever disconnection is completed
+   * @method
+   */
   socket.on('disconnect', function() {
     console.log('>> Player ' + socket.playerName + ' ('+
                 socket.id + ') disconnected');
   });
 
   socket.on('drawCard', function(res) {
-    let numplayer = data[res[1]]['turn'];
-    let idplayer = data[res[1]]['players'][numplayer]['id'];
+    let numPlayer = data[res[1]]['turn'];
+    let idPlayer = data[res[1]]['players'][numplayer]['id'];
+    let namePlayer = data[res[1]]['players']['name'];
+    let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
+    let deck = data[res[1]]['deck'];
 
     if (idplayer == socket.id) {
       let card = parseInt(deck.shift());
-      data[res[1]]['players'][numplayer]['hand'].push(card);
-      io.to(idplayer).emit('haveCard', data[res[1]]['players'][numplayer]['hand']);
-      deck.push(card);
-      if (data[res[1]]['cycle'] == 1) {
-        numplayer = (numplayer + 1) % 2;
+      handPlayer.push(card);
+      io.to(idPlayer).emit('haveCard', handPlayer);
+      //deck.push(card);
+      // TODO: Check playable card
+      //Next turn
+      if (data[res[1]]['reverse'] == 0) {
+        numPlayer = (numPlayer + 1) % count(data[res[1]]['players']);
       } else {
-        numplayer = Math.abs(numplayer - 1) % 2;
+        numplayer = Math.abs(numplayer - 1) % count(data[res[1]]['players']);
       }
       data[res[1]]['turn'] = numplayer;
       io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numplayer]['id']);
