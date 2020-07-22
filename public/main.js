@@ -13,6 +13,7 @@ let turn;
 let playerName;
 
 function init() {
+  ctx.font = "12px Arial";
   canvas.style.backgroundColor = '#10ac84';
   cards.src = 'images/deck.svg';
   back.src = 'images/uno.svg';
@@ -82,7 +83,6 @@ function onMouseClick(e) {
 }
 
 socket.on('turnPlayer', function(data) {
-  console.log(data);
   if (data == socket.id) {
     turn = true;
     console.log('<< Your turn');
@@ -129,6 +129,31 @@ function debugArea(x1, x2, y1, y2) {
   ctx.lineTo(x2, canvas.height);
   ctx.closePath();
   ctx.stroke();
+}
+
+function chooseColor() {
+
+  let cx = canvas.width / 2;
+  let cy = canvas.height / 2;
+  let r = cdHeight / 4;
+  let colors = ['red', 'blue', 'green', 'gold'];
+
+  for(let i = 0; i < 4; i++) {
+      let startAngle = i * Math.PI / 2;
+      let endAngle = startAngle + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fillStyle = colors[i];
+      ctx.fill();
+      ctx.stroke();
+  }
+
+  ctx.fillStyle = 'black';
+  ctx.textAlign = 'center';
+  ctx.fillText("Choose a color", canvas.width / 2, canvas.height / 2 - r - 10);
+  ctx.textAlign = 'start';
 }
 
 init();
