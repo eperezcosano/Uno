@@ -87,6 +87,12 @@ function cardColor(num) {
   return color;
 }
 
+/**
+ * Given a card number, returns its type
+ * @function
+ * @param {Number} num Number of the card position in deck
+ * @return {String} Card type. Either skip, reverse, draw2, draw4, wild or number.
+ */
 function cardType(num) {
   switch (num % 14) {
     case 10: //Skip
@@ -131,6 +137,11 @@ function cardScore(num) {
   return points;
 }
 
+/**
+ * Starts a countdown for start a game on a room
+ * @function
+ * @param {String} name Room name
+ */
 function startingCountdown(name) {
   let countDown = data[name]['timeout']['s']--;
   io.to(name).emit('countDown', countDown);
@@ -140,7 +151,6 @@ function startingCountdown(name) {
     startGame(name);
   }
 }
-
 
 /**
  * Request for start the game.
@@ -233,8 +243,8 @@ function startGame(name) {
       data[name]['turn'] = (dealer + 2) % people;
     }
 
-    console.log('>> ' + name + ': Turn is for Player ' + data[name]['turn']);
-    console.log('>> ' + name + ': Reverse (' + data[name]['reverse'] + ')');
+    console.log('>> ' + name + ': Turn is for ' + data[name]['players'][(data[name]['turn'])]['name']);
+    console.log('>> ' + name + ': Reverse (' + (data[name]['reverse']?true:false) + ')');
 
     for (let i = 0; i < people; i++) {
       io.to(data[name]['players'][i]['id']).emit('haveCard', data[name]['players'][i]['hand']);
@@ -339,7 +349,7 @@ function onConnection(socket) {
     let namePlayer = data[res[1]]['players']['name'];
     let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
     let deck = data[res[1]]['deck'];
-//Check turn
+
     if (idPlayer == socket.id) {
       let playedColor = cardColor(res[0]);
       let playedNumber = res[0] % 14;
@@ -372,12 +382,10 @@ function onConnection(socket) {
           //draw4
         }
         numPlayer = Math.abs(numPlayer + (-1) ** data[res[1]]['reverse'] * (1 + skip)) % data[res[1]]['people'];
-        console.log(numPlayer);
+        data[res[1]]['turn'] = numPlayer;
         io.to(res[1]).emit('turnPlayer', data[res[1]]['players'][numPlayer]['id']);
 
       }
     }
   });
-
-
 }
