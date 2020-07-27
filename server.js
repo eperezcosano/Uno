@@ -236,6 +236,8 @@ function startGame(name) {
       data[name]['players'][(data[name]['turn'])]['hand'].push(card);
       console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
                   ' draws ' + cardType(card) + ' ' + cardColor(card));
+
+      data[name]['turn'] = (dealer + 2) % people;
     } else if (cardType(cardOnBoard) == 'Reverse') {
       data[name]['turn'] = Math.abs(dealer - 1) % people;
       data[name]['reverse'] = 1;
@@ -280,6 +282,19 @@ function onConnection(socket) {
       } catch (e) {
         people = 0;
       }
+      //Reconnect
+      /*
+      for (let i = 0; i < data[name]['people']; i++) {
+        if (data[name]['players'][i]['name'] == socket.playerName) {
+          socket.join(name);
+          io.to(socket.id).emit('haveCard', data[name]['players'][i]['hand']);
+          io.to(socket.id).emit('sendCard', data[name]['cardOnBoard']);
+          io.to(socket.id).emit('turnPlayer', data[name]['players'][(data[name]['turn'])]['id']);
+          console.log('>> Reconnect');
+          return;
+        }
+      }
+      */
       if (people < maxPeople && data[name]['timeout']['s'] > 0) {
         socket.join(name);
         console.log('>> User ' + socket.playerName +
@@ -304,6 +319,7 @@ function onConnection(socket) {
    * leave its room and notify to the rest
    * @method
    */
+   //// TODO: Empty a room
   socket.on('disconnecting', function() {
     room = Object.keys(io.sockets.adapter.sids[socket.id])[1];
     if (room !== undefined) {
