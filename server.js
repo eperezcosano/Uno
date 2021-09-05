@@ -63,7 +63,7 @@ function shuffle(a) {
  */
 function cardColor(num) {
   let color;
-  if (num % 14 == 13) {
+  if (num % 14 === 13) {
     return 'black';
   }
   switch (Math.floor(num / 14)) {
@@ -101,7 +101,6 @@ function cardType(num) {
       return 'Reverse';
     case 12: //Draw 2
       return 'Draw2';
-      break;
     case 13: //Wild or Wild Draw 4
       if (Math.floor(num / 14) >= 4) {
         return 'Draw4';
@@ -215,7 +214,7 @@ function startGame(name) {
       cardOnBoard = parseInt(newDeck.shift());
       console.log('>> ' + name + ': Card on board ' +
                   cardType(cardOnBoard) + ' ' + cardColor(cardOnBoard));
-      if (cardColor(cardOnBoard) == 'black') {
+      if (cardColor(cardOnBoard) === 'black') {
         newDeck.push(cardOnBoard);
         console.log('>> ' + name + ': Replacing for another card');
       } else {
@@ -227,7 +226,7 @@ function startGame(name) {
     data[name]['turn'] = (dealer + 1) % people;
     data[name]['reverse'] = 0;
 
-    if (cardType(cardOnBoard) == 'Draw2') {
+    if (cardType(cardOnBoard) === 'Draw2') {
       card = parseInt(newDeck.shift());
       data[name]['players'][(data[name]['turn'])]['hand'].push(card);
       console.log('>> ' + name + ': Player ' + (dealer + 1 % people) +
@@ -238,15 +237,15 @@ function startGame(name) {
                   ' draws ' + cardType(card) + ' ' + cardColor(card));
 
       data[name]['turn'] = (dealer + 2) % people;
-    } else if (cardType(cardOnBoard) == 'Reverse') {
+    } else if (cardType(cardOnBoard) === 'Reverse') {
       data[name]['turn'] = Math.abs(dealer - 1) % people;
       data[name]['reverse'] = 1;
-    } else if (cardType(cardOnBoard) == 'Skip') {
+    } else if (cardType(cardOnBoard) === 'Skip') {
       data[name]['turn'] = (dealer + 2) % people;
     }
 
     console.log('>> ' + name + ': Turn is for ' + data[name]['players'][(data[name]['turn'])]['name']);
-    console.log('>> ' + name + ': Reverse (' + (data[name]['reverse']?true:false) + ')');
+    console.log('>> ' + name + ': Reverse (' + (!!data[name]['reverse']) + ')');
 
     for (let i = 0; i < people; i++) {
       io.to(data[name]['players'][i]['id']).emit('haveCard', data[name]['players'][i]['hand']);
@@ -299,7 +298,7 @@ function onConnection(socket) {
         socket.join(name);
         console.log('>> User ' + socket.playerName +
         ' connected on ' + name + ' (' + (people + 1) + '/' + maxPeople + ')');
-        io.to(socket.id).emit('responseRoom', name);
+        io.to(name).emit('responseRoom', [name, people + 1, maxPeople]);
         if (people + 1 >= 2) {
           clearInterval(data[name]['timeout']['id']);
           data[name]['timeout']['s'] = 10;
@@ -346,7 +345,7 @@ function onConnection(socket) {
     let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
     let deck = data[res[1]]['deck'];
 
-    if (idPlayer == socket.id) {
+    if (idPlayer === socket.id) {
       let card = parseInt(deck.shift());
       handPlayer.push(card);
       io.to(idPlayer).emit('haveCard', handPlayer);
@@ -359,21 +358,21 @@ function onConnection(socket) {
     }
   });
 
-  socket.on('playCard', function(res) {
+  socket.on('playCard', function(res) {
     let numPlayer = data[res[1]]['turn'];
     let idPlayer = data[res[1]]['players'][numPlayer]['id'];
     let namePlayer = data[res[1]]['players']['name'];
     let handPlayer = data[res[1]]['players'][numPlayer]['hand'];
     let deck = data[res[1]]['deck'];
 
-    if (idPlayer == socket.id) {
+    if (idPlayer === socket.id) {
       let playedColor = cardColor(res[0]);
       let playedNumber = res[0] % 14;
 
       let boardColor = cardColor(data[res[1]]['cardOnBoard']);
       let boardNumber = data[res[1]]['cardOnBoard'] % 14;
 
-      if (playedColor == 'black' || playedColor == boardColor || playedNumber == boardNumber) {
+      if (playedColor === 'black' || playedColor === boardColor || playedNumber === boardNumber) {
         // Play card
         io.to(res[1]).emit('sendCard', res[0]);
         data[res[1]]['cardOnBoard'] = res[0];
@@ -386,14 +385,14 @@ function onConnection(socket) {
 
         // Next turn
         let skip = 0;
-        if (cardType(res[0]) == 'Skip') {
+        if (cardType(res[0]) === 'Skip') {
           skip += 1;
-        } else if (cardType(res[0]) == 'Reverse') {
+        } else if (cardType(res[0]) === 'Reverse') {
           data[res[1]]['reverse'] = (data[res[1]]['reverse'] + 1) % 2;
-        } else if (cardType(res[0]) == 'Draw2') {
+        } else if (cardType(res[0]) === 'Draw2') {
           skip += 1;
           //draw2
-        } else if (cardType(res[0]) == 'Draw4') {
+        } else if (cardType(res[0]) === 'Draw4') {
           skip += 1;
           //draw4
         }

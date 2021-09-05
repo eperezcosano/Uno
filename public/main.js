@@ -1,5 +1,5 @@
 const socket = io({autoConnect: false});
-const canvas = document.getElementById('canvas');;
+const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
 const cdWidth = 240;
@@ -23,11 +23,13 @@ function init() {
 
   playerName = getCookie('playerName');
   if (playerName == null) {
-    playerName = prompt('Enter your name: ', 'Guest');
-    if (playerName == null || playerName == "") {
-      playerName = 'Guest';
+    let defaultName = 'Player' + Math.floor(1000 + Math.random() * 9000);
+    playerName = prompt('Enter your name: ', defaultName);
+    if (playerName === null || playerName === "") {
+      playerName = defaultName;
+    } else {
+      setCookie('playerName', playerName, 24 * 3600);
     }
-    setCookie('playerName', playerName, 24 * 3600);
   }
 
   socket.connect();
@@ -45,10 +47,10 @@ function getCookie(name) {
   let cookies = document.cookie.split(';');
   for(let i = 0; i < cookies.length; i++) {
     let cookie = cookies[i];
-    while (cookie.charAt(0) == ' ') {
+    while (cookie.charAt(0) === ' ') {
       cookie = cookie.substring(1);
     }
-    if (cookie.indexOf(name) == 0) {
+    if (cookie.indexOf(name) === 0) {
       return cookie.substring(name.length, cookie.length);
     }
   }
@@ -59,20 +61,22 @@ socket.on('connect', requestRoom);
 socket.on('confirmLeave', requestRoom);
 
 function requestRoom() {
+  dialog('Waiting for a Room...');
   socket.emit('requestRoom', playerName);
   room = 0;
   hand = [];
   turn = false;
-  console.log('>> Room Request');
+  console.log('>> Room Request', playerName);
 }
 
-socket.on('responseRoom', function (name) {
-  if (name != 'error') {
+socket.on('responseRoom', function ([name, people, maxPeople]) {
+  if (name !== 'error') {
     room = name;
-    console.log('<< Room Response: ' + name);
-    ctx.fillText(name, 0, 10);
-    ctx.drawImage(back, canvas.width-cdWidth/2-60, canvas.height/2-cdHeight/4, cdWidth/2, cdHeight/2);
-    ctx.fillText(playerName, 100, 390);
+    console.log('<< Room Response', name);
+    // ctx.fillText(name, 0, 10);
+    // ctx.drawImage(back, canvas.width-cdWidth/2-60, canvas.height/2-cdHeight/4, cdWidth/2, cdHeight/2);
+    // ctx.fillText(playerName, 100, 390);
+    dialog(name + ': Waiting for Players (' + people +'/' + maxPeople + ')');
   } else {
     socket.disconnect();
     alert('Rooms are full! Try again later');
@@ -80,14 +84,27 @@ socket.on('responseRoom', function (name) {
 });
 
 socket.on('countDown', function(countDown) {
-  ctx.clearRect(0, 10, 15, 10);
-  ctx.fillText(countDown, 0, 20);
+  if (countDown > 0) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'orange';
+    ctx.fillRect(canvas.width / 2 - 10, canvas.height / 2 + 40, 21, 20);
+    ctx.fillStyle = 'black';
+    ctx.fillText(countDown, canvas.width / 2, canvas.height / 2 + 50);
+  } else {
+    const width = 800;
+    const height = 250;
+    ctx.clearRect(canvas.width/2 - width/2, canvas.height/2 - height/2, width, height);
+    ctx.drawImage(back, canvas.width-cdWidth/2-60, canvas.height/2-cdHeight/4, cdWidth/2, cdHeight/2);
+    ctx.font = 'normal 15px sans-serif';
+    ctx.fillText(playerName, 100, 390);
+  }
 });
 
 socket.on('playerDisconnect', function() {
   //ctx.clearRect(0, 0, canvas.width, canvas.height);
   //socket.emit('leaveRoom', room);
-  console.log('<< Player disconnected in ' + room);
+  console.log('<< Player disconnected', room);
 });
 
 function onMouseClick(e) {
@@ -110,9 +127,10 @@ function onMouseClick(e) {
 }
 
 socket.on('turnPlayer', function(data) {
-  if (data == socket.id) {
+  if (data === socket.id) {
     turn = true;
     console.log('<< Your turn');
+    arrow();
   } else {
     turn = false;
     console.log('<< Not your turn');
@@ -124,7 +142,7 @@ socket.on('haveCard', function(nums) {
   ctx.clearRect(0, 400, canvas.width, canvas.height);
   for (let i = 0; i < hand.length; i++) {
     ctx.drawImage(cards, 1+cdWidth*(hand[i]%14), 1+cdHeight*Math.floor(hand[i]/14), cdWidth, cdHeight, (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))*(i+1)-(cdWidth/4), 400, cdWidth/2, cdHeight/2);
-    console.log('<< Have card: ' + hand[i]);
+    console.log('<< Have card', hand[i]);
   }
 });
 
@@ -181,6 +199,33 @@ function chooseColor() {
   ctx.textAlign = 'center';
   ctx.fillText("Choose a color", canvas.width / 2, canvas.height / 2 - r - 10);
   ctx.textAlign = 'start';
+}
+
+function dialog(text) {
+  const width = 800;
+  const height = 250;
+  ctx.fillStyle = 'orange';
+  ctx.fillRect(canvas.width/2 - width/2, canvas.height/2 - height/2, width, height);
+  ctx.fillStyle = 'black';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'normal 15px sans-serif';
+  ctx.fillText(playerName, canvas.width/2, canvas.height/2 - 50);
+  ctx.font = 'normal bold 20px sans-serif';
+  ctx.fillText(text, canvas.width/2, canvas.height/2);
+}
+
+function arrow() {
+  const x = 100;
+  const y = 350;
+  ctx.fillStyle = '#c0392b';
+  ctx.fillRect(x - 5, y - 10, 10, 20);
+  ctx.beginPath();
+  ctx.moveTo(x - 15, y + 10);
+  ctx.lineTo(x + 15, y + 10);
+  ctx.lineTo(x, y + 30);
+  ctx.fill();
+
 }
 
 init();
