@@ -281,10 +281,11 @@ function onConnection(socket) {
       } catch (e) {
         people = 0;
       }
+
       //Reconnect
-      /*
+/*
       for (let i = 0; i < data[name]['people']; i++) {
-        if (data[name]['players'][i]['name'] == socket.playerName) {
+        if (data[name]['players'][i]['name'] === socket.playerName) {
           socket.join(name);
           io.to(socket.id).emit('haveCard', data[name]['players'][i]['hand']);
           io.to(socket.id).emit('sendCard', data[name]['cardOnBoard']);
@@ -292,8 +293,8 @@ function onConnection(socket) {
           console.log('>> Reconnect');
           return;
         }
-      }
-      */
+      }*/
+
       if (people < maxPeople && data[name]['timeout']['s'] > 0) {
         socket.join(name);
         console.log('>> User ' + socket.playerName +
@@ -301,7 +302,7 @@ function onConnection(socket) {
         io.to(name).emit('responseRoom', [name, people + 1, maxPeople]);
         if (people + 1 >= 2) {
           clearInterval(data[name]['timeout']['id']);
-          data[name]['timeout']['s'] = 10;
+          data[name]['timeout']['s'] = 3;
           data[name]['timeout']['id'] = setInterval(function() {
             startingCountdown(name);
           }, 1000);

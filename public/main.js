@@ -108,20 +108,25 @@ socket.on('playerDisconnect', function() {
 });
 
 function onMouseClick(e) {
-  //TODO: fix offset
-  let lastCard = canvas.offsetLeft + (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))*(hand.length)-(cdWidth/4)+cdWidth/2;
-  let initCard = canvas.offsetLeft + 2 + (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))-(cdWidth/4);
 
-  if (e.pageY >= 400 && e.pageY <= 580 && e.pageX >= initCard && e.pageX <= lastCard) {
+  const offsetY = parseInt(window.getComputedStyle(canvas).marginTop);
+  const offsetX = parseInt(window.getComputedStyle(canvas).marginLeft);
+  const X = e.pageX - offsetX;
+  const Y = e.pageY - offsetY;
+
+  let lastCard = (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))*(hand.length)-(cdWidth/4)+cdWidth/2;
+  let initCard = 2 + (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))-(cdWidth/4);
+
+  if (Y >= 400 && Y <= 580 && X >= initCard && X <= lastCard) {
     for (let i = 0, pos = initCard; i < hand.length; i++, pos += canvas.width/(2+(hand.length-1))) {
-      if (e.pageX >= pos && e.pageX <= pos+canvas.width/(2+(hand.length-1))) {
-        debugArea(pos, pos+canvas.width/(2+(hand.length-1)), 400, 580);
+      if (X >= pos && X <= pos+canvas.width/(2+(hand.length-1))) {
+        // debugArea(pos, pos+canvas.width/(2+(hand.length-1)), 400, 580);
         socket.emit('playCard', [hand[i], room]);
         return;
       }
     }
-  } else if (e.pageX >= canvas.width-cdWidth/2-60 &&  e.pageX <= canvas.width-60 &&
-    e.pageY >= canvas.height/2-cdHeight/4 && e.pageY <= canvas.height/2+cdHeight/4) {
+  } else if (X >= canvas.width-cdWidth/2-60 &&  X <= canvas.width-60 &&
+    Y >= canvas.height/2-cdHeight/4 && Y <= canvas.height/2+cdHeight/4) {
     socket.emit('drawCard', [1, room]);
   }
 }
@@ -141,7 +146,17 @@ socket.on('haveCard', function(nums) {
   hand = nums;
   ctx.clearRect(0, 400, canvas.width, canvas.height);
   for (let i = 0; i < hand.length; i++) {
-    ctx.drawImage(cards, 1+cdWidth*(hand[i]%14), 1+cdHeight*Math.floor(hand[i]/14), cdWidth, cdHeight, (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))*(i+1)-(cdWidth/4), 400, cdWidth/2, cdHeight/2);
+    ctx.drawImage(
+        cards,
+        1+cdWidth*(hand[i]%14),
+        1+cdHeight*Math.floor(hand[i]/14),
+        cdWidth,
+        cdHeight,
+        (hand.length/112)*(cdWidth/3)+(canvas.width/(2+(hand.length-1)))*(i+1)-(cdWidth/4),
+        400,
+        cdWidth/2,
+        cdHeight/2
+    );
     console.log('<< Have card', hand[i]);
   }
 });
